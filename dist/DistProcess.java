@@ -13,6 +13,7 @@ import org.apache.zookeeper.ZooDefs.Ids;
 import org.apache.zookeeper.KeeperException.*;
 import org.apache.zookeeper.data.*;
 import org.apache.zookeeper.KeeperException.Code;
+import org.apache.zookeeper.server.watch.WatcherMode;
 
 // TODO
 // Replace XX with your group number.
@@ -31,7 +32,11 @@ public class DistProcess implements Watcher
 {
 	ZooKeeper zk;
 	String zkServer, pinfo;
+	HashSet<String> workers = new HashSet<String>();
 	boolean isMaster=false;
+
+	final String STATUS = "/status";
+	final String TODO = "/todo";
 
 	DistProcess(String zkhost)
 	{
@@ -49,7 +54,8 @@ public class DistProcess implements Watcher
 			runForMaster();	// See if you can become the master (i.e, no other master exists)
 			isMaster=true;
 			getTasks(); // Install monitoring on any new tasks that will be created.
-									// TODO monitor for worker tasks?
+			getWorkers();
+			
 		}catch(NodeExistsException nee)
 		{ isMaster=false; } // TODO: What else will you need if this was a worker process?
 
@@ -59,7 +65,37 @@ public class DistProcess implements Watcher
 	// Master fetching task znodes...
 	void getTasks()
 	{
-		zk.getChildren("/distXX/tasks", this, this, null);  
+		zk.getChildren("/dist21/tasks", this, this, null);
+	}
+	
+	void getWorkers()
+	{
+		zk.getChildren(
+                "/dist21/connections",
+				watchedEvent -> {
+					System.out.println("DISTAPP : Event received : " + watchedEvent);
+					getWorkers();
+				},
+                this,
+				(ChildrenCallback) (i, s, o, list) -> {
+					for(String worker : list){
+						String path = "/dist21/workers/worker/";
+						try {
+							Stat stat = zk.exists(path, false);
+							if(stat==null) {
+								path = zk.create(path, worker.getBytes(), Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+
+								zk.create(path+STATUS, "ok".getBytes(), Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+								zk.create(path+TODO, "".getBytes(), Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+
+								zk.addWatch(path+STATUS, this, AddWatchMode.PERSISTENT, null, null);
+							}
+						} catch (KeeperException | InterruptedException e) {
+							e.printStackTrace();
+						}
+					}
+				});
+
 	}
 
 	// Try to become the master.
@@ -67,7 +103,7 @@ public class DistProcess implements Watcher
 	{
 		//Try to create an ephemeral node to be the master, put the hostname and pid of this process as the data.
 		// This is an example of Synchronous API invocation as the function waits for the execution and no callback is involved..
-		zk.create("/distXX/master", pinfo.getBytes(), Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
+		zk.create("/dist21/master", pinfo.getBytes(), Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
 	}
 
 	public void process(WatchedEvent e)
@@ -84,7 +120,7 @@ public class DistProcess implements Watcher
 
 		System.out.println("DISTAPP : Event received : " + e);
 		// Master should be notified if any new znodes are added to tasks.
-		if(e.getType() == Watcher.Event.EventType.NodeChildrenChanged && e.getPath().equals("/distXX/tasks"))
+		if(e.getType() == Watcher.Event.EventType.NodeChildrenChanged && e.getPath().equals("/dist21/tasks"))
 		{
 			// There has been changes to the children of the node.
 			// We are going to re-install the Watch as well as request for the list of the children.
@@ -121,7 +157,7 @@ public class DistProcess implements Watcher
 				// that should be moved done by a process function as the worker.
 
 				//TODO!! This is not a good approach, you should get the data using an async version of the API.
-				byte[] taskSerial = zk.getData("/distXX/tasks/"+c, false, null);
+				byte[] taskSerial = zk.getData("/dist21/tasks/"+c, false, null);
 
 				// Re-construct our task object.
 				ByteArrayInputStream bis = new ByteArrayInputStream(taskSerial);
@@ -139,8 +175,8 @@ public class DistProcess implements Watcher
 				taskSerial = bos.toByteArray();
 
 				// Store it inside the result node.
-				zk.create("/distXX/tasks/"+c+"/result", taskSerial, Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
-				//zk.create("/distXX/tasks/"+c+"/result", ("Hello from "+pinfo).getBytes(), Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+				zk.create("/dist21/tasks/"+c+"/result", taskSerial, Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+				//zk.create("/dist21/tasks/"+c+"/result", ("Hello from "+pinfo).getBytes(), Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
 			}
 			catch(NodeExistsException nee){System.out.println(nee);}
 			catch(KeeperException ke){System.out.println(ke);}
