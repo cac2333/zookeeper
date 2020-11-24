@@ -1,7 +1,7 @@
 
 ### Run Server
 
-make sure you have following structure in your zookeeper server
+make sure you have the following structure in your zookeeper server
 ```
 dist21
     |__tasks
