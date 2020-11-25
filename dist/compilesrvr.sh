@@ -8,4 +8,4 @@ fi
 
 . $ZOOBINDIR/zkEnv.sh
 
-javac -cp $CLASSPATH:../task:.: DistProcess.java
+javac -cp $CLASSPATH:../task:.: DistProcess.java SerializeLib.java Worker.java

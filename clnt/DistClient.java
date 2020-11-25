@@ -1,7 +1,7 @@
 import java.io.*;
 
 // To get the name of the host.
-import java.net.*;
+//import java.net.*;
 
 //To get the process id.
 //import java.lang.management.*;
@@ -31,7 +31,9 @@ public class DistClient implements Watcher
 		//System.out.println("DISTAPP : Client information : " + pinfo);
 	}
 
-	void startClient() throws IOException, UnknownHostException, KeeperException, InterruptedException
+	void startClient() throws IOException
+														//, UnknownHostException
+														, KeeperException, InterruptedException
 	{
 		zk = new ZooKeeper(zkServer, 1000, this); //connect to ZK.
 
@@ -42,7 +44,6 @@ public class DistClient implements Watcher
 		byte [] dTaskSerial = bos.toByteArray();
 
 		// Create a sequential znode with the Task object as its data.
-		// TODO replace XX with your group number.
 		taskNodeName = zk.create("/dist21/tasks/task-", dTaskSerial, Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT_SEQUENTIAL);
 		//taskNodeName = zk.create("/distXX/tasks/task-", pinfo.getBytes(), Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT_SEQUENTIAL);
 		System.out.println("DISTAPP : TaskNode : " + taskNodeName);
