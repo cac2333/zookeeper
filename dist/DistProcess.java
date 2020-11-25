@@ -197,14 +197,14 @@ public class DistProcess implements Watcher {
             System.out.println("Uh oh, master went down");
             try {
                 if (!worker.requestMaster()) {
-                    System.out.println("Resetting watch on master...");
                     zk.exists("/dist21/master", this, null, null); // reset the watch on master
-                    zk.exists("/dist21/master", this, null, null);
 
                 }
             } catch (InterruptedException | UnknownHostException | KeeperException ex) {
                 ex.printStackTrace();
             }
+        } else if (e.getType() == Event.EventType.NodeCreated && e.getPath().equals("/dist21/master")) {
+            zk.exists("/dist21/master", this, null, null);
         }
 
     }
