@@ -1,22 +1,47 @@
 import org.apache.zookeeper.*;
 import org.apache.zookeeper.data.Stat;
 
+import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Worker implements Watcher {
 
-    ZooKeeper zk;
+    private ZooKeeper zk;
+    private final DistProcess proc;
     public String workerPath;
     public final AtomicBoolean processing;
+    public final AtomicBoolean masterRequested;
 
-
-    public Worker(ZooKeeper zk, String workerPath) {
+    public Worker(DistProcess proc, ZooKeeper zk, String workerPath) {
         this.zk = zk;
         this.workerPath = workerPath;
+        this.proc = proc;
         processing = new AtomicBoolean(false);
+        masterRequested = new AtomicBoolean(false);
     }
 
+    public boolean requestMaster() throws InterruptedException, UnknownHostException, KeeperException {
+
+        System.out.println("Worker [" + workerPath + "] trying to become master");
+
+        masterRequested.set(true);
+
+        if (processing.get()) return false;
+
+        try {
+            proc.runForMaster();
+            System.out.println("worker [" + workerPath + "] became master");
+            zk.delete(workerPath, -1, null, null);
+            proc.loadFields();
+            return true;
+        } catch (KeeperException.NodeExistsException e) {
+            System.out.println("worker [" + workerPath + "] failed to become master");
+            return false;
+        }
+
+
+    }
 
     // Implementing the Watcher interface
     @Override
@@ -47,7 +72,6 @@ public class Worker implements Watcher {
             new Thread(() -> {
                 try {
 
-//                    String taskPath = new String(data); // todo check this actually does what I want
                     String taskPath = (String) SerializeLib.deserialize(data);
 
                     System.out.println("[" + workerPath + "]: working on task [" + taskPath + "]");
@@ -71,6 +95,9 @@ public class Worker implements Watcher {
 
                     System.out.println("[" + workerPath + "]: finished task [" + taskPath + "]");
                     processing.set(false);
+
+                    if (masterRequested.get()) requestMaster();
+
                 } catch (Exception e) {
                     e.printStackTrace();
                 }

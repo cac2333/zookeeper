@@ -58,7 +58,7 @@ public class DistProcess implements Watcher {
         return null;
     }
 
-    private void loadFields() throws KeeperException, InterruptedException {
+    public void loadFields() throws KeeperException, InterruptedException {
 
         try {
             toProcessTaskPathQueue = (Queue<String>) getField("/dist21/task-queue", new LinkedList<String>());
@@ -97,7 +97,7 @@ public class DistProcess implements Watcher {
             isMaster = true;
 
         } catch (NodeExistsException nee) {
-            worker = new Worker(zk, zk.create("/dist21/workers/worker-", null, Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL));
+            worker = new Worker(this, zk, zk.create("/dist21/workers/worker-", null, Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL));
             zk.getData(worker.workerPath, worker, null, null); // set worker to watch for updates to its data
             zk.exists("/dist21/master", this, null, null);
         }
@@ -192,18 +192,11 @@ public class DistProcess implements Watcher {
                 assignTasks();
                 writeFields();
             }, null);
-        } else if (e.getType() == Event.EventType.NodeDeleted && e.getPath().equals("/dist21/master") && !worker.processing.get()) {
+        } else if (e.getType() == Event.EventType.NodeDeleted && e.getPath().equals("/dist21/master")) {
             try {
-                runForMaster();
-                System.out.println("worker [" + worker.workerPath + "] became master");
-                zk.removeWatches(worker.workerPath, worker, WatcherType.Any, true);
-                zk.delete(worker.workerPath, -1, null, null);
-                worker = null;
-                loadFields();
-            } catch (NodeExistsException nee) {
-                System.out.println("worker [" + worker.workerPath + "] failed to become master");
-                zk.exists("/dist21/master", this, null, null); // reset the watch on master
-            } catch (UnknownHostException | KeeperException | InterruptedException ex) {
+                if (!worker.requestMaster())
+                    zk.exists("/dist21/master", this, null, null); // reset the watch on master
+            } catch (InterruptedException | UnknownHostException | KeeperException ex) {
                 ex.printStackTrace();
             }
         }
