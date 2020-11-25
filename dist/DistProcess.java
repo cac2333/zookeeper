@@ -114,7 +114,8 @@ public class DistProcess implements Watcher {
     }
 
     private void assignTasks() {
-        System.out.println("Master assigning tasks... [" + readyWorkerPathSet.size() + "] available worker(s)");
+        System.out.println("Master assigning tasks... [" + readyWorkerPathSet.size() +
+                "] available worker(s) and [" + toProcessTaskPathQueue.size() + "] tasks to process" );
         List<String> processedWorkerPaths = new ArrayList<>();
         for (String readyWorkerPath : readyWorkerPathSet) {
             if (toProcessTaskPathQueue.isEmpty()) break;
@@ -193,9 +194,14 @@ public class DistProcess implements Watcher {
                 writeFields();
             }, null);
         } else if (e.getType() == Event.EventType.NodeDeleted && e.getPath().equals("/dist21/master")) {
+            System.out.println("Uh oh, master went down");
             try {
-                if (!worker.requestMaster())
+                if (!worker.requestMaster()) {
+                    System.out.println("Resetting watch on master...");
                     zk.exists("/dist21/master", this, null, null); // reset the watch on master
+                    zk.exists("/dist21/master", this, null, null);
+
+                }
             } catch (InterruptedException | UnknownHostException | KeeperException ex) {
                 ex.printStackTrace();
             }

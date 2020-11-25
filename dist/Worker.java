@@ -27,7 +27,10 @@ public class Worker implements Watcher {
 
         masterRequested.set(true);
 
-        if (processing.get()) return false;
+        if (processing.get()) {
+            System.out.println("Could not become master, was busy. Will try again when no longer busy");
+            return false;
+        }
 
         try {
             proc.runForMaster();
@@ -89,14 +92,16 @@ public class Worker implements Watcher {
 
                     // Store it inside the result node.
                     zk.create("/dist21/tasks/" + taskPath + "/result", taskSerial, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
-                    // add self to ready workers again
-                    workerPath = zk.create("/dist21/workers/worker-", null, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL);
-                    zk.getData(workerPath, watcher, null, null); // set temporary watch on data
 
                     System.out.println("[" + workerPath + "]: finished task [" + taskPath + "]");
                     processing.set(false);
 
-                    if (masterRequested.get()) requestMaster();
+                    if (!(masterRequested.get() && requestMaster())) {
+                        // add self to ready workers again
+                        workerPath = zk.create("/dist21/workers/worker-", null, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL);
+                        zk.getData(workerPath, watcher, null, null); // set temporary watch on data
+                    }
+                    masterRequested.set(false);
 
                 } catch (Exception e) {
                     e.printStackTrace();
